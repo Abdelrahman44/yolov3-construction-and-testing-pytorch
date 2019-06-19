@@ -20,12 +20,13 @@ def predict_transform(prediction, inp_dim, anchors, num_classes, CUDA = True):
     bbox_attrs = 5 + num_classes
     num_anchors = len(anchors)
     
+    # convert the feature map to a 2d array, each row is the prediction for an anchor for a pixel in the map
     prediction = prediction.view(batch_size, bbox_attrs*num_anchors, grid_size*grid_size)
     prediction = prediction.transpose(1,2).contiguous()
     prediction = prediction.view(batch_size, grid_size*grid_size*num_anchors, bbox_attrs)
     anchors = [(a[0]/stride, a[1]/stride) for a in anchors]
 
-    #Sigmoid the  centre_X, centre_Y. and object confidencce
+    #Sigmoid the centre_X, centre_Y. and object confidencce
     prediction[:,:,0] = torch.sigmoid(prediction[:,:,0])
     prediction[:,:,1] = torch.sigmoid(prediction[:,:,1])
     prediction[:,:,4] = torch.sigmoid(prediction[:,:,4])
