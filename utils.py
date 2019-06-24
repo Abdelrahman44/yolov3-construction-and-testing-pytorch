@@ -1,7 +1,3 @@
-
-
-
-
 from __future__ import division
 import torch 
 import torch.nn as nn
@@ -60,3 +56,101 @@ def predict_transform(prediction, inp_dim, anchors, num_classes, CUDA = True):
     prediction[:,:,:4] *= stride
     
     return prediction
+
+
+def unique(tensor):
+    tensor_np = tensor.cpu().numpy()
+    unique_np = np.unique(tensor_np)
+    unique_tensor = torch.from_numpy(unique_np)
+    
+    return unique_tensor
+
+def bbox_iou(box1, box2):
+    b1_x1, b1_y1, b1_x2, b1_y2 = box1[:,0], box1[:,1], box1[:,2], box1[:,3]
+    b2_x1, b2_y1, b2_x2, b2_y2 = box2[:,0], box2[:,1], box2[:,2], box2[:,3]
+    
+    inter_rect_x1 = torch.max(b1_x1, b2_x1)
+    inter_rect_y1 = torch.max(b1_y1, b2_y1)
+    inter_rect_x2 = torch.min(b1_x2, b2_x2)
+    inter_rect_y2 = torch.min(b1_y2, b2_y2)
+    
+    b1_area = (b1_x2 - b1_x1) * (b1_y2 - b1_y1)
+    b2_area = (b2_x2 - b2_x1) * (b2_y2 - b1_y1)
+    inter_area = torch.clamp(inter_rect_x2 - b1_x1 +1, min=0) * torch.clamp(inter_rect_y2 - b1_y1)
+    iou = inter_area/(b1_area + b2_area - inter_area)
+    
+    return iou
+    
+
+def write_results(predictions, confidence_thres, num_classes, IOU_conf=0.4):
+    # a mask to disregard the below confidebce threshold bounding boxes
+    conf_mask = (predictions[:,:,4] > confidence_thres).float().unsqueeze(2)
+    predictions *= conf_mask
+    
+    # converting from (x,y,width,height) to (x,y of top left and bottom right corners)
+    box_corners = predictions.new(*predictions.shape)
+    box_corners[:,:,0] = predictions[:,:,0] - predictions[:,:,2]/2
+    box_corners[:,:,2] = predictions[:,:,0] + predictions[:,:,2]/2
+    box_corners[:,:,1] = predictions[:,:,1] - predictions[:,:,3]/2
+    box_corners[:,:,3] = predictions[:,:,1] + predictions[:,:,3]/2
+    predictions[:,:,:4] = box_corners[:,:,:4]
+    
+    
+    write = False
+    
+    # single image at a time
+    for i in range(predictions.shape[0]):
+        preds = predictions[i]
+        max_conf, max_class= torch.max((preds[:,5:5+num_classes]), 1)   # class score and class number
+        max_class = max_class.float().unsqueeze(1)
+        max_conf = max_conf.unsqueeze(1)
+        preds = torch.cat((preds[:,:5], max_conf, max_class), 1)
+        
+        nonzero_idx = torch.nonzero(preds[:,4]).squeeze()
+        preds_ = preds[nonzero_idx,:].view(-1, 7)
+        
+        img_classes = unique(preds_[:,-1])      #get the detetcted classes
+    
+    
+        for cls in img_classes:
+            
+            cls_mask = (preds_[:,-1] == cls).float().unsqueeze(1)
+            masked = preds_ * cls_mask
+            cls_idx = torch.nonzero(masked[:,-2]).squeeze()
+            print(cls_idx)
+            preds_class = preds_[cls_idx].view(-1,7)
+            
+            conf_sort_idx = torch.sort(preds_class[:,4], descending=True)[1]
+            preds_class = preds_class[conf_sort_idx]
+            num_detections = preds_class.size(0)
+            
+            for d in range(num_detections):
+                try:
+                    ious = bbox_iou(preds_class[d].unsqueeze(0), preds_class[d+1:])
+                except:
+                    break
+                    
+                iou_mask = (ious < IOU_conf).float().unsqueeze(1)
+                preds_class[d+1:] *= iou_mask
+                
+                nonzero_ind = torch.nonzero(preds_class[:,4]).squeeze()
+                preds_class = preds_class[nonzero_ind].view(-1, 7)
+                
+            
+            batch_idx = preds_class.new(preds_class.size(0), 1).fill_(i)
+            
+            if not write:
+                output = torch.cat((batch_idx, preds_class), 1)
+                write = True
+                
+            else:
+                out = torch.cat((batch_idx, preds_class), 1)
+                print(out.shape, output.shape)
+                output = torch.cat((output, out))
+                
+                
+    try:
+        return output
+    except:
+        return 0
+    
