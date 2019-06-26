@@ -76,11 +76,10 @@ def bbox_iou(box1, box2):
     
     b1_area = (b1_x2 - b1_x1) * (b1_y2 - b1_y1)
     b2_area = (b2_x2 - b2_x1) * (b2_y2 - b1_y1)
-    inter_area = torch.clamp(inter_rect_x2 - b1_x1 +1, min=0) * torch.clamp(inter_rect_y2 - b1_y1)
+    inter_area = torch.clamp(inter_rect_x2 - b1_x1 +1, min=0) * torch.clamp(inter_rect_y2 - b1_y1, min=0)
     iou = inter_area/(b1_area + b2_area - inter_area)
     
     return iou
-    
 
 def write_results(predictions, confidence_thres, num_classes, IOU_conf=0.4):
     # a mask to disregard the below confidebce threshold bounding boxes
@@ -95,15 +94,16 @@ def write_results(predictions, confidence_thres, num_classes, IOU_conf=0.4):
     box_corners[:,:,3] = predictions[:,:,1] + predictions[:,:,3]/2
     predictions[:,:,:4] = box_corners[:,:,:4]
     
-    
+    batch_size = predictions.size(0)
+
     write = False
     
     # single image at a time
-    for i in range(predictions.shape[0]):
+    for i in range(batch_size):
         preds = predictions[i]
         max_conf, max_class= torch.max((preds[:,5:5+num_classes]), 1)   # class score and class number
         max_class = max_class.float().unsqueeze(1)
-        max_conf = max_conf.unsqueeze(1)
+        max_conf = max_conf.float().unsqueeze(1)
         preds = torch.cat((preds[:,:5], max_conf, max_class), 1)
         
         nonzero_idx = torch.nonzero(preds[:,4]).squeeze()
@@ -117,7 +117,6 @@ def write_results(predictions, confidence_thres, num_classes, IOU_conf=0.4):
             cls_mask = (preds_[:,-1] == cls).float().unsqueeze(1)
             masked = preds_ * cls_mask
             cls_idx = torch.nonzero(masked[:,-2]).squeeze()
-            print(cls_idx)
             preds_class = preds_[cls_idx].view(-1,7)
             
             conf_sort_idx = torch.sort(preds_class[:,4], descending=True)[1]
@@ -145,12 +144,13 @@ def write_results(predictions, confidence_thres, num_classes, IOU_conf=0.4):
                 
             else:
                 out = torch.cat((batch_idx, preds_class), 1)
-                print(out.shape, output.shape)
                 output = torch.cat((output, out))
+                
                 
                 
     try:
         return output
     except:
         return 0
+       
     
