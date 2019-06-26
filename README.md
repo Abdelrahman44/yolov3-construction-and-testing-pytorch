@@ -12,6 +12,10 @@ This is an implementation of YOLOv3 given the discription of the network in the 
     
   or you can run it in a notebook using in detect.py
   
-  This is a sample output:
+- you can run it on a video stream from your web cam using web_cam.ipynb.
+
+For video streams, it works in real-time when GPU is used
+  
+  This is a sample output of an image:
   
   ![alt text](https://github.com/Abdelrahman44/yolov3-implementation-from-scratch-pytorch/blob/master/detections/det_person.jpg)
