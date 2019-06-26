@@ -110,11 +110,15 @@ def write_results(predictions, confidence_thres, num_classes, IOU_conf=0.4):
         preds_ = preds[nonzero_idx,:].view(-1, 7)
         
         img_classes = unique(preds_[:,-1])      #get the detetcted classes
-    
+        
     
         for cls in img_classes:
             
-            cls_mask = (preds_[:,-1] == cls).float().unsqueeze(1)
+            try:
+                cls_mask = (preds_[:,-1].cuda() == cls.cuda()).float().unsqueeze(1)
+            except: 
+                cls_mask = (preds_[:,-1] == cls.float().unsqueeze(1)
+                
             masked = preds_ * cls_mask
             cls_idx = torch.nonzero(masked[:,-2]).squeeze()
             preds_class = preds_[cls_idx].view(-1,7)
@@ -152,12 +156,12 @@ def write_results(predictions, confidence_thres, num_classes, IOU_conf=0.4):
         return output
     except:
         return 0
-       
+
 def load_classes(namesfile):
     fp = open(namesfile, "r")
     names = fp.read().split("\n")[:-1]
     return names
-    
+
 def letterbox_image(img, inp_dim):
     '''resize image with unchanged aspect ratio using padding'''
     img_w, img_h = img.shape[1], img.shape[0]
@@ -172,7 +176,7 @@ def letterbox_image(img, inp_dim):
     
     return canvas
 
-    
+
 def prep_image(img, inp_dim):
     """
     Prepare image for inputting to the neural network. 
