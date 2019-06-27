@@ -1,6 +1,7 @@
 # yolov3-implementation-from-scratch-pytorch
 
-This is an implementation of YOLOv3 given the discription of the network in the file "yolov3.cfg". 
+This is an implementation of YOLOv3 given the discription of the network in the file "yolov3.cfg", with scriptws to run it on images and video streams from web cams.
+
 - The network is constructed in darknet.py
 - the resulted detections are processed for thresholding and non-maximum suppression by functions in the utils.py
 - images/ contains sample images for testing
